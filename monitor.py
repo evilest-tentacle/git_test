@@ -49,7 +49,7 @@ current_user = 1
 # 并口设备名称
 
 # 危险端口访问(本机/远端)
-
+dangerous_port = []
 
 def disk_numbers():  # 返回磁盘数量
     global drive_nums
