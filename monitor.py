@@ -12,6 +12,7 @@ import psutil
 import asyncio
 import os
 import requests
+import re
 
 # disks = wmi.WMI().Win32_LogicalDisk()  # 调用此方法获得硬盘信息
 
@@ -22,7 +23,7 @@ diskc = 0
 # c盘使用率
 diskc_used = 0
 # 驱动器数量变化
-drives_plus = 0   # 驱动器数量较初始增加则为1，否则为0。
+drives_plus = 0  # 驱动器数量较初始增加则为1，否则为0。
 drives_minus = 0  # 驱动器数量较初始减少则为1，否则为0。
 # 是否有光驱
 if_cdrom = 0
@@ -51,6 +52,36 @@ current_user = 1
 # 危险端口访问(本机/远端)
 dangerous_port = []
 
+
+async def t20():  # 每20秒调用一次下列函数，刷新变量
+    while True:
+        global user_counts
+        global current_user
+        current_users()  # 检查当前用户数
+        user_name()  # 当前用户名
+        disk_number_compares()  # 驱动器数
+        if_disc()  # 是否有光盘挂载
+        get_ip_list()  # 检测外联事件
+        try:
+            await asyncio.sleep(20)
+        except asyncio.CancelledError:
+            print('Cancelled Error')
+            break
+
+
+async def t60():  # 每60秒调用一次下列函数，刷新变量
+    while True:
+        cpu_info()
+        ram_info()
+        net_out()
+        net_in()
+        try:
+            await asyncio.sleep(60)
+        except asyncio.CancelledError:
+            print('Cancelled Error')
+            break
+
+
 def disk_numbers():  # 返回磁盘数量
     global drive_nums
     drive_nums = len(wmi.WMI().Win32_LogicalDisk())
@@ -59,14 +90,14 @@ def disk_numbers():  # 返回磁盘数量
 
 def ram():  # 获取总内存大小
     global total_rams
-    a = psutil.virtual_memory().total/(1024 ** 3)  # 内存取GB大小
+    a = psutil.virtual_memory().total / (1024 ** 3)  # 内存取GB大小
     total_rams = round(a, 1)
     return total_rams
 
 
 def disk_c():
     global diskc
-    diskc = round(psutil.disk_usage(r'c:\\').total/(1024**3), 1)  # 获取C盘大小，单位为GB
+    diskc = round(psutil.disk_usage(r'c:\\').total / (1024 ** 3), 1)  # 获取C盘大小，单位为GB
     return diskc
 
 
@@ -124,16 +155,21 @@ def get_ip_list():
 
 
 black_file = r'C:\Users\hui\Desktop\project\python2017\black_list.txt'
+
+
 def black_lists():  # 用于生成黑名单，实现危险端口探测功能(若本地已开放端口在黑名单中，则触发报警)
     # global list0
-    with open(black_file,'r') as f:  # 二进制读
+    with open(black_file, 'r') as f:  # 二进制读
         bts = f.read()
     list0 = bts.split(' ')
     return list0
 
+
 white_file = r'C:\Users\hui\Desktop\project\python2017\white_list.txt'
+
+
 def white_lists():  # 用于生成白名单，实现外联事件探测功能(若本机访问的目标机器的IP不在白名单中，则触发报警)
-    with open(white_file,'r') as f:  # 二进制读
+    with open(white_file, 'r') as f:  # 二进制读
         bts = f.read()
     list0 = bts.split(' ')
     return list0
@@ -144,10 +180,12 @@ def current_users():  # 返回当前用户总数
     user_counts = len(psutil.users())
     return user_counts
 
+
 def user_name():  # 返回当前用户名
     global current_user
     current_user = psutil.users()[0].name
     return current_user
+
 
 def disk_number_compares():  # 比较磁盘数量
     global drives_plus
@@ -206,16 +244,17 @@ def cdrom():  # 判断光驱数量
     else:
         if_cdrom = wmi.WMI().Win32_CDROMDrive()
 
+
 def if_disc():  # 判断是否有光盘(针对单光驱)
     global if_discs
     # 模拟命令行获取磁盘信息
-    val = os.popen('ECHO LIST VOLUME|DISKPART').readlines()
+    val0 = os.popen('ECHO LIST VOLUME|DISKPART').readlines()
     # ROM_new = 'no'
     # 逐行解析信息，找寻驱动器的相关信息
-    val1 = ''.join(val)
+    val1 = ''.join(val0)
     a = re.search('ROM', val1)
-    if re.search('ROM', val1) :  #type(re.search('ROM', line)) == 'NoneType'
-        if re.search(r'ROM(\s+)0 B', line) is None:  # 匹配形如"ROM     0 B"字段
+    if re.search('ROM', val1):  # type(re.search('ROM', line)) == 'NoneType'
+        if re.search(r'ROM(\s+)0 B', val1) is None:  # 匹配形如"ROM     0 B"字段
             if_discs = 1  # 此时有盘
         else:
             if_discs = 0  # 此时无盘
@@ -254,9 +293,9 @@ def current_time():
 async def net_out():
     global netio_out
     a0 = psutil.net_io_counters()[0]
-    await asyncio.sleep(5)
+    await asyncio.sleep(1)
     a1 = psutil.net_io_counters()[0]
-    total = (a1 - a0) / (1024 * 5)  # 以kb为单位
+    total = (a1 - a0) / (1024 * 1)  # 以kb为单位
     netio_out = round(total, 2)
     return print("Out: {} kb/s".format(netio_out))
 
@@ -264,9 +303,9 @@ async def net_out():
 async def net_in():
     global netio_in
     a0 = psutil.net_io_counters()[1]
-    await asyncio.sleep(5)
+    await asyncio.sleep(1)
     a1 = psutil.net_io_counters()[1]
-    total = (a1 - a0) / (1024 * 5)
+    total = (a1 - a0) / (1024 * 1)
     netio_in = round(total, 2)
     # return "Out: {} kb/s".format(speed)
     print("In: {} kb/s".format(netio_in))
@@ -287,6 +326,7 @@ async def ping():  # ping服务端
         if_ping = 1
         return print('online')
 
+
 #
 # def time_count():
 #     a = time.time()
@@ -302,14 +342,56 @@ async def ping():  # ping服务端
 def time_count():
     a = time.time()
     loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)  # 外面再套一个循环，以此实现loop永不关闭
+    asyncio.set_event_loop(loop)
     tasks = [net_out(), net_in(), ping()]  # 将任务加入队列
-    loop.run_until_complete(asyncio.wait(tasks))
+    try:
+        loop.run_until_complete(asyncio.wait(tasks))
+    except Exception as ret:
+        print(ret)
+        loop.close()
+
+    b = time.time()
+    return print(b - a)
+
+
+def t20():
+    a = time.time()
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(asyncio.wait(task20))
     loop.close()
     b = time.time()
     return print(b-a)
 
 
+# def t60():
+#     a = time.time()
+#     loop = asyncio.new_event_loop()
+#     asyncio.set_event_loop(loop)
+#     loop.run_until_complete(asyncio.wait(task60))
+#     loop.close()
+#     b = time.time()
+#     return print(b - a)
+#
+#
+# def t300():
+#     a = time.time()
+#     loop = asyncio.new_event_loop()
+#     asyncio.set_event_loop(loop)
+#     loop.run_until_complete(asyncio.wait(task300))
+#     loop.close()
+#     b = time.time()
+#     return print(b - a)
+#
+#
+# def t3600():
+#     a = time.time()
+#     loop = asyncio.new_event_loop()
+#     asyncio.set_event_loop(loop)
+#     loop.run_until_complete(asyncio.wait(task3600))
+#     loop.close()
+#     b = time.time()
+#     return print(b - a)
 
 
 class send_logs(object):  # 单例模式写日志
@@ -338,7 +420,8 @@ class send_logs(object):  # 单例模式写日志
     def logs_create(self):  # 创建日志
         with open(r'D:\logs\%s_status.txt' % self.localIP, 'a+') as f:  # 文件名形如192.168.1.1_status.txt
             msg = '{}{}'.format(self.MSG, '\n')
-            f.write(msg)  # 内容形如{'IP': '192.168.2.200', 'RAM': 15.9, 'RAM_AVAI': 51.1, 'HARD_DISK': 119.5, 'HARD_DISK_AVAI': 71.7, 'CPU': 33.9}
+            f.write(
+                msg)  # 内容形如{'IP': '192.168.2.200', 'RAM': 15.9, 'RAM_AVAI': 51.1, 'HARD_DISK': 119.5, 'HARD_DISK_AVAI': 71.7, 'CPU': 33.9}
 
     def send(self):
         url_test = 'http://localhost:8000/status/'  # 用于测试的接收端地址
@@ -347,6 +430,14 @@ class send_logs(object):  # 单例模式写日志
         with open(r'D:\logs\%s_status.html' % self.localIP, 'wb+') as f:  # 将请求的返回内容保存为html
             f.write(infos.text.encode("GBK", "ignore"))
 
+# 20秒周期的任务
+task20 = [current_users(), user_name(), disk_number_compares(), if_disc(), get_ip_list()]
+# 60秒周期的任务
+task60 = [cpu_info(), ram_info(), net_in(), net_out()]
+# 300秒周期的任务
+task300 = [get_port_list()]
+# 3600秒周期的任务
+task3600 = [disk_used(), cdrom()]
 
 # def main():
 #     while True:
@@ -359,6 +450,5 @@ class send_logs(object):  # 单例模式写日志
 # main()
 oldloop = asyncio.get_event_loop()
 while True:
-
     time_count()
 asyncio.set_event_loop(oldloop)
